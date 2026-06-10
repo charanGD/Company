@@ -11,6 +11,7 @@ const PORT = process.env.EMAIL_SERVER_PORT || 3001;
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
+  'https://company-ctaxeujqx-charan-s-projects-23ede680.vercel.app',
   /\.vercel\.app$/,   // any *.vercel.app preview/production URL
 ];
 app.use(cors({

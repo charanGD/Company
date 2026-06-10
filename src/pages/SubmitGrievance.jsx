@@ -66,7 +66,8 @@ export default function SubmitGrievance() {
 
       // ── Send confirmation email via Nodemailer backend ─────────────────
       try {
-        const res = await fetch('/api/send-ticket-email', {
+        const API_BASE = import.meta.env.VITE_API_URL || '';
+        const res = await fetch(`${API_BASE}/api/send-ticket-email`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
