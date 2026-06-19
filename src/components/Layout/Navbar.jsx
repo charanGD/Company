@@ -1,25 +1,33 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { signOut } from 'firebase/auth';
 import {
-  Shield, Bell, Sun, Moon, LogOut, ChevronDown,
-  LayoutDashboard, ShieldAlert, Settings, Cpu,
+  Shield, Sun, Moon, LogOut, ChevronDown,
+  LayoutDashboard, ShieldAlert, Settings, Cpu, Users,
 } from 'lucide-react';
-import { auth } from '../../firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export default function Navbar() {
-  const { user, role } = useAuth();
+  const { user, role, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const navigate = useNavigate();
-  const location = useLocation();
+  const navigate    = useNavigate();
+  const location    = useLocation();
   const [profileOpen, setProfileOpen] = useState(false);
 
-  const handleSignOut = async () => {
-    await signOut(auth);
+  const handleSignOut = () => {
+    logout();
     navigate('/');
   };
+
+  const isAdmin       = role === 'admin';
+  const isStaffOrAdmin = ['admin', 'staff'].includes(role);
+
+  // Role badge config
+  const roleBadge = {
+    admin: { label: 'ADMIN', color: '#6366f1', bg: 'rgba(99,102,241,0.2)' },
+    staff: { label: 'STAFF', color: '#10b981', bg: 'rgba(16,185,129,0.2)' },
+    user:  null,
+  }[role] || null;
 
   return (
     <nav style={{
@@ -29,13 +37,11 @@ export default function Navbar() {
       backdropFilter: 'blur(16px)',
       borderBottom: '1px solid var(--border)',
       zIndex: 100,
-      display: 'flex',
-      alignItems: 'center',
-      padding: '0 24px',
-      gap: '16px',
+      display: 'flex', alignItems: 'center',
+      padding: '0 24px', gap: '16px',
     }}>
       {/* Logo */}
-      <Link to="/dashboard" style={{
+      <Link to={isStaffOrAdmin ? '/admin' : '/dashboard'} style={{
         display: 'flex', alignItems: 'center', gap: '10px',
         textDecoration: 'none', marginRight: 'auto',
       }}>
@@ -59,20 +65,32 @@ export default function Navbar() {
       {/* Nav Links */}
       {user && (
         <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-          <NavLink to="/dashboard" active={location.pathname === '/dashboard'}>
-            <LayoutDashboard size={15} /> Dashboard
-          </NavLink>
-          <NavLink to="/privacy-policy" active={location.pathname === '/privacy-policy'}>
-            <ShieldAlert size={15} /> Privacy Policy
-          </NavLink>
-          {role === 'admin' && (
+          {/* Regular user links */}
+          {role === 'user' && (
+            <>
+              <NavLink to="/dashboard" active={location.pathname === '/dashboard'}>
+                <LayoutDashboard size={15} /> Dashboard
+              </NavLink>
+              <NavLink to="/privacy-policy" active={location.pathname === '/privacy-policy'}>
+                <ShieldAlert size={15} /> Privacy Policy
+              </NavLink>
+            </>
+          )}
+
+          {/* Staff + Admin links */}
+          {isStaffOrAdmin && (
             <>
               <NavLink to="/admin" active={location.pathname.startsWith('/admin')}>
-                <Settings size={15} /> Admin
+                <Settings size={15} /> {isAdmin ? 'Admin' : 'Staff Panel'}
               </NavLink>
-              <NavLink to="/ai/scanner" active={location.pathname.startsWith('/ai')}>
-                <Cpu size={15} /> AI Tools
+              <NavLink to="/privacy-policy" active={location.pathname === '/privacy-policy'}>
+                <ShieldAlert size={15} /> Privacy Policy
               </NavLink>
+              {isAdmin && (
+                <NavLink to="/ai/scanner" active={location.pathname.startsWith('/ai')}>
+                  <Cpu size={15} /> AI Tools
+                </NavLink>
+              )}
             </>
           )}
         </div>
@@ -84,17 +102,14 @@ export default function Navbar() {
         <button onClick={toggleTheme} style={{
           background: 'var(--bg-secondary)',
           border: '1px solid var(--border)',
-          borderRadius: '10px',
-          padding: '8px',
-          cursor: 'pointer',
-          color: 'var(--text-secondary)',
-          display: 'flex', alignItems: 'center',
-          transition: 'all 0.2s',
+          borderRadius: '10px', padding: '8px',
+          cursor: 'pointer', color: 'var(--text-secondary)',
+          display: 'flex', alignItems: 'center', transition: 'all 0.2s',
         }}>
           {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
         </button>
 
-        {/* Profile */}
+        {/* Profile dropdown */}
         {user && (
           <div style={{ position: 'relative' }}>
             <button
@@ -103,25 +118,30 @@ export default function Navbar() {
                 display: 'flex', alignItems: 'center', gap: '8px',
                 background: 'var(--bg-secondary)',
                 border: '1px solid var(--border)',
-                borderRadius: '10px',
-                padding: '6px 12px',
-                cursor: 'pointer',
-                color: 'var(--text-primary)',
+                borderRadius: '10px', padding: '6px 12px',
+                cursor: 'pointer', color: 'var(--text-primary)',
                 transition: 'all 0.2s',
               }}
             >
-              {user.photoURL
-                ? <img src={user.photoURL} alt="avatar" style={{ width: 26, height: 26, borderRadius: '50%' }} />
-                : <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 12, fontWeight: 700 }}>
-                    {user.displayName?.[0] || 'U'}
-                  </div>
-              }
-              <span style={{ fontSize: 13, fontWeight: 600, maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {user.displayName?.split(' ')[0] || 'User'}
+              {/* Avatar — initials circle */}
+              <div style={{
+                width: 26, height: 26, borderRadius: '50%',
+                background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'white', fontSize: 11, fontWeight: 800,
+              }}>
+                {user.display_name?.[0]?.toUpperCase() || user.username?.[0]?.toUpperCase() || 'U'}
+              </div>
+              <span style={{ fontSize: 13, fontWeight: 600, maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {user.display_name || user.username}
               </span>
-              {role === 'admin' && (
-                <span style={{ fontSize: 10, fontWeight: 700, background: 'rgba(99,102,241,0.2)', color: '#6366f1', padding: '2px 6px', borderRadius: 6 }}>
-                  ADMIN
+              {roleBadge && (
+                <span style={{
+                  fontSize: 10, fontWeight: 700,
+                  background: roleBadge.bg, color: roleBadge.color,
+                  padding: '2px 6px', borderRadius: 6,
+                }}>
+                  {roleBadge.label}
                 </span>
               )}
               <ChevronDown size={14} />
@@ -132,16 +152,19 @@ export default function Navbar() {
                 position: 'absolute', right: 0, top: '110%',
                 background: 'var(--bg-secondary)',
                 border: '1px solid var(--border)',
-                borderRadius: '12px',
-                minWidth: 200,
+                borderRadius: '12px', minWidth: 200,
                 boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
-                padding: '8px',
-                zIndex: 200,
+                padding: '8px', zIndex: 200,
                 animation: 'fadeIn 0.15s ease',
               }}>
                 <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', marginBottom: 4 }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{user.displayName}</p>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                    {user.display_name || user.username}
+                  </p>
                   <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>{user.email}</p>
+                  <p style={{ fontSize: 10, color: roleBadge?.color || 'var(--text-muted)', marginTop: 3, fontWeight: 700 }}>
+                    {role?.toUpperCase()}
+                  </p>
                 </div>
                 <button
                   onClick={handleSignOut}
@@ -149,8 +172,7 @@ export default function Navbar() {
                     width: '100%', display: 'flex', alignItems: 'center', gap: 8,
                     padding: '8px 12px', background: 'transparent', border: 'none',
                     cursor: 'pointer', borderRadius: 8, color: '#ef4444',
-                    fontSize: 13, fontWeight: 600,
-                    transition: 'background 0.15s',
+                    fontSize: 13, fontWeight: 600, transition: 'background 0.15s',
                   }}
                   onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}

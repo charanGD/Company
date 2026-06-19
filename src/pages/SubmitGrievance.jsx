@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { Send, Paperclip, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { createTicket } from '../utils/firestoreHelpers';
+import { createTicket } from '../utils/firestoreHelpers';   // now backed by PostgreSQL REST API
 import Navbar from '../components/Layout/Navbar';
 import Sidebar from '../components/Layout/Sidebar';
 import Footer from '../components/Layout/Footer';
 import toast, { Toaster } from 'react-hot-toast';
+
 
 const ISSUE_TYPES = [
   'Privacy Complaint',
@@ -22,16 +23,20 @@ const INITIAL_FORM = {
 };
 
 export default function SubmitGrievance() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({
     ...INITIAL_FORM,
-    name: user?.displayName || '',
+    name: user?.display_name || '',
     email: user?.email || '',
   });
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(null);
+
+  if (role === 'admin') {
+    return <Navigate to="/admin" replace />;
+  }
 
   const validate = () => {
     const e = {};
@@ -80,7 +85,20 @@ export default function SubmitGrievance() {
           }),
         });
         if (res.ok) {
-          toast.success(`📧 Confirmation email sent to ${form.email}`, { duration: 4000 });
+          const data = await res.json();
+          if (data.previewUrl) {
+            toast((t) => (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span style={{ fontWeight: 600 }}>📧 Test Email Generated!</span>
+                <a href={data.previewUrl} target="_blank" rel="noreferrer" style={{ color: '#6366f1', textDecoration: 'underline' }}>
+                  Click here to preview the email
+                </a>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>(Since no SMTP credentials were provided)</span>
+              </div>
+            ), { duration: 10000 });
+          } else {
+            toast.success(`📧 Confirmation email sent to ${form.email}`, { duration: 4000 });
+          }
         } else {
           toast('📧 Ticket saved but email delivery failed. Check email server.', { icon: '⚠️' });
         }
@@ -134,7 +152,7 @@ export default function SubmitGrievance() {
                 <button onClick={() => navigate('/dashboard')} className="btn-primary">
                   View Dashboard
                 </button>
-                <button onClick={() => { setSubmitted(null); setForm({ ...INITIAL_FORM, name: user?.displayName || '', email: user?.email || '' }); }} className="btn-secondary">
+                <button onClick={() => { setSubmitted(null); setForm({ ...INITIAL_FORM, name: user?.display_name || '', email: user?.email || '' }); }} className="btn-secondary">
                   Submit Another
                 </button>
               </div>

@@ -1,13 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  collection, query, where, orderBy, getDocs,
-} from 'firebase/firestore';
-import {
   FilePlus, Search, Ticket, Clock, CheckCircle,
   AlertCircle, BarChart3, RefreshCw,
 } from 'lucide-react';
-import { db } from '../firebase';
+import { apiGet } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import Badge from '../components/ui/Badge';
 import Spinner from '../components/ui/Spinner';
@@ -15,15 +12,15 @@ import Navbar from '../components/Layout/Navbar';
 import Sidebar from '../components/Layout/Sidebar';
 import Footer from '../components/Layout/Footer';
 
-const STATUSES = ['All', 'Open', 'In Progress', 'Resolved', 'Closed'];
+const STATUSES = ['All', 'Open', 'In Progress', 'Awaiting User Confirmation', 'Closed', 'Reopened'];
 
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [tickets, setTickets] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('All');
-  const [search, setSearch] = useState('');
+  const [tickets, setTickets]     = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [filter, setFilter]       = useState('All');
+  const [search, setSearch]       = useState('');
   const [fetchError, setFetchError] = useState('');
 
   const fetchTickets = async () => {
@@ -31,36 +28,11 @@ export default function Dashboard() {
     setLoading(true);
     setFetchError('');
     try {
-      // Try with orderBy first (requires composite index)
-      const q = query(
-        collection(db, 'grievance_tickets'),
-        where('userId', '==', user.uid),
-        orderBy('createdAt', 'desc')
-      );
-      const snap = await getDocs(q);
-      setTickets(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const data = await apiGet('/api/tickets');
+      setTickets(data);
     } catch (err) {
-      console.warn('Ordered query failed, trying without orderBy:', err.message);
-      // Fallback: query without orderBy (works without composite index)
-      try {
-        const q2 = query(
-          collection(db, 'grievance_tickets'),
-          where('userId', '==', user.uid)
-        );
-        const snap2 = await getDocs(q2);
-        const docs = snap2.docs.map(d => ({ id: d.id, ...d.data() }));
-        // Sort client-side
-        docs.sort((a, b) => {
-          const ta = a.createdAt?.toMillis?.() || 0;
-          const tb = b.createdAt?.toMillis?.() || 0;
-          return tb - ta;
-        });
-        setTickets(docs);
-        setFetchError('');
-      } catch (err2) {
-        console.error('Firestore read failed:', err2);
-        setFetchError(err2.message || 'Failed to load tickets. Check Firestore Security Rules.');
-      }
+      console.error('Failed to load tickets:', err.message);
+      setFetchError(err.message || 'Failed to load tickets.');
     }
     setLoading(false);
   };
@@ -69,8 +41,9 @@ export default function Dashboard() {
 
   const filtered = tickets.filter(t => {
     const matchStatus = filter === 'All' || t.status === filter;
-    const matchSearch = !search || t.name?.toLowerCase().includes(search.toLowerCase())
-      || t.issueType?.toLowerCase().includes(search.toLowerCase())
+    const matchSearch = !search
+      || t.name?.toLowerCase().includes(search.toLowerCase())
+      || t.issue_type?.toLowerCase().includes(search.toLowerCase())
       || t.id.toLowerCase().includes(search.toLowerCase());
     return matchStatus && matchSearch;
   });
@@ -111,10 +84,10 @@ export default function Dashboard() {
 
           {/* Stats Row */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 16, marginBottom: 32 }}>
-            <StatCard label="Total" value={tickets.length} icon={Ticket} color="#6366f1" />
-            <StatCard label="Open" value={counts['Open'] || 0} icon={AlertCircle} color="#3b82f6" />
-            <StatCard label="In Progress" value={counts['In Progress'] || 0} icon={Clock} color="#f59e0b" />
-            <StatCard label="Resolved" value={counts['Resolved'] || 0} icon={CheckCircle} color="#10b981" />
+            <StatCard label="Total"       value={tickets.length}             icon={Ticket}       color="#6366f1" />
+            <StatCard label="Open"        value={counts['Open'] || 0}        icon={AlertCircle}  color="#3b82f6" />
+            <StatCard label="In Progress" value={counts['In Progress'] || 0} icon={Clock}        color="#f59e0b" />
+            <StatCard label="Awaiting Confirmation" value={counts['Awaiting User Confirmation'] || 0} icon={CheckCircle}  color="#10b981" />
           </div>
 
           {/* Filters + Search */}
@@ -153,11 +126,7 @@ export default function Dashboard() {
               borderRadius: 12, padding: '14px 18px', marginBottom: 20,
               color: '#ef4444', fontSize: 13, lineHeight: 1.6,
             }}>
-              <strong>⚠️ Firestore Error:</strong> {fetchError}
-              <br />
-              <span style={{ color: 'var(--text-muted)' }}>
-                Fix: Go to Firebase Console → Firestore → Rules → allow read, write during testing.
-              </span>
+              <strong>⚠️ Error:</strong> {fetchError}
             </div>
           )}
 
@@ -203,14 +172,16 @@ export default function Dashboard() {
                             #{ticket.id.slice(-8).toUpperCase()}
                           </span>
                         </td>
-                        <td style={{ fontWeight: 600 }}>{ticket.issueType}</td>
+                        <td style={{ fontWeight: 600 }}>{ticket.issue_type}</td>
                         <td style={{ color: 'var(--text-muted)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {ticket.description}
                         </td>
                         <td><Badge status={ticket.status} /></td>
-                        <td style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{ticket.assignedTo}</td>
+                        <td style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{ticket.assigned_to}</td>
                         <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                          {ticket.createdAt?.toDate?.()?.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) || '—'}
+                          {ticket.created_at
+                            ? new Date(ticket.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                            : '—'}
                         </td>
                       </tr>
                     ))}

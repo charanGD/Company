@@ -1,13 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  collection, query, orderBy, getDocs, where,
-} from 'firebase/firestore';
-import {
   Search, Filter, RefreshCw, Ticket, Users,
   CheckCircle, Clock, AlertCircle, XCircle,
 } from 'lucide-react';
-import { db } from '../../firebase';
+import { apiGet } from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
 import Badge from '../../components/ui/Badge';
 import Spinner from '../../components/ui/Spinner';
@@ -15,38 +12,39 @@ import Navbar from '../../components/Layout/Navbar';
 import Sidebar from '../../components/Layout/Sidebar';
 import Footer from '../../components/Layout/Footer';
 
-const STATUSES = ['All', 'Open', 'In Progress', 'Resolved', 'Closed'];
+const STATUSES    = ['All', 'Open', 'In Progress', 'Awaiting User Confirmation', 'Closed', 'Reopened'];
 const ISSUE_TYPES = ['All', 'Privacy Complaint', 'Data Correction Request', 'Data Deletion Request', 'Consent Withdrawal', 'Security Incident', 'Other'];
 
 export default function AdminDashboard() {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const [tickets, setTickets] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { user, role } = useAuth();
+  const navigate  = useNavigate();
+  const [tickets, setTickets]         = useState([]);
+  const [loading, setLoading]         = useState(true);
   const [statusFilter, setStatusFilter] = useState('All');
-  const [typeFilter, setTypeFilter] = useState('All');
-  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter]   = useState('All');
+  const [search, setSearch]           = useState('');
 
   const fetchTickets = async () => {
     setLoading(true);
     try {
-      const q = query(collection(db, 'grievance_tickets'), orderBy('createdAt', 'desc'));
-      const snap = await getDocs(q);
-      setTickets(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    } catch (err) { console.error(err); }
+      const data = await apiGet('/api/tickets/all');
+      setTickets(data);
+    } catch (err) {
+      console.error('AdminDashboard fetchTickets:', err.message);
+    }
     setLoading(false);
   };
 
   useEffect(() => { fetchTickets(); }, []);
 
   const filtered = tickets.filter(t => {
-    const s = statusFilter === 'All' || t.status === statusFilter;
-    const ty = typeFilter === 'All' || t.issueType === typeFilter;
-    const q = !search
+    const s  = statusFilter === 'All' || t.status === statusFilter;
+    const ty = typeFilter   === 'All' || t.issue_type === typeFilter;
+    const q  = !search
       || t.name?.toLowerCase().includes(search.toLowerCase())
       || t.email?.toLowerCase().includes(search.toLowerCase())
       || t.id.toLowerCase().includes(search.toLowerCase())
-      || t.issueType?.toLowerCase().includes(search.toLowerCase());
+      || t.issue_type?.toLowerCase().includes(search.toLowerCase());
     return s && ty && q;
   });
 
@@ -64,7 +62,7 @@ export default function AdminDashboard() {
           {/* Header */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32, flexWrap: 'wrap', gap: 16 }}>
             <div>
-              <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>Admin Dashboard</h1>
+              <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>{role === 'staff' ? 'Staff Dashboard' : 'Admin Dashboard'}</h1>
               <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Manage all grievance tickets · DPO Control Panel</p>
             </div>
             <button onClick={fetchTickets} style={{
@@ -79,11 +77,11 @@ export default function AdminDashboard() {
 
           {/* Stats */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 16, marginBottom: 32 }}>
-            <AStatCard label="Total" value={tickets.length} icon={Ticket} color="#6366f1" />
-            <AStatCard label="Open" value={counts['Open'] || 0} icon={AlertCircle} color="#3b82f6" />
-            <AStatCard label="In Progress" value={counts['In Progress'] || 0} icon={Clock} color="#f59e0b" />
-            <AStatCard label="Resolved" value={counts['Resolved'] || 0} icon={CheckCircle} color="#10b981" />
-            <AStatCard label="Closed" value={counts['Closed'] || 0} icon={XCircle} color="#64748b" />
+            <AStatCard label="Total Tickets" value={tickets.length}             icon={Ticket}       color="#6366f1" />
+            <AStatCard label="Open"          value={counts['Open'] || 0}        icon={AlertCircle}  color="#3b82f6" />
+            <AStatCard label="In Progress"   value={counts['In Progress'] || 0} icon={Clock}        color="#f59e0b" />
+            <AStatCard label="Awaiting Conf." value={counts['Awaiting User Confirmation'] || 0} icon={CheckCircle}  color="#10b981" />
+            <AStatCard label="Closed"      value={counts['Closed'] || 0}      icon={XCircle}      color="#64748b" />
           </div>
 
           {/* Filters */}
@@ -149,16 +147,18 @@ export default function AdminDashboard() {
                         <td>
                           <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#6366f1', background: 'rgba(99,102,241,0.1)', padding: '2px 8px', borderRadius: 6 }}>
                             #{t.id.slice(-8).toUpperCase()}
-                            {t.isTest && <span style={{ marginLeft: 6, fontSize: 10, color: '#a855f7' }}>[TEST]</span>}
+                            {t.is_test && <span style={{ marginLeft: 6, fontSize: 10, color: '#a855f7' }}>[TEST]</span>}
                           </span>
                         </td>
                         <td style={{ fontWeight: 600 }}>{t.name}</td>
                         <td style={{ color: 'var(--text-muted)', fontSize: 13 }}>{t.email}</td>
-                        <td style={{ fontSize: 13 }}>{t.issueType}</td>
+                        <td style={{ fontSize: 13 }}>{t.issue_type}</td>
                         <td><Badge status={t.status} /></td>
-                        <td style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{t.assignedTo}</td>
+                        <td style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{t.assigned_to}</td>
                         <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                          {t.createdAt?.toDate?.()?.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) || '—'}
+                          {t.created_at
+                            ? new Date(t.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                            : '—'}
                         </td>
                       </tr>
                     ))}

@@ -47,18 +47,37 @@ export default function ComplianceScanner() {
   const [scanned, setScanned] = useState(false);
 
   async function runScan() {
-    if (!code.trim()) {
-      toast.error('Please paste your source code first.');
+    let inputToScan = code.trim();
+    if (!inputToScan) {
+      toast.error('Please paste your source code or webpage URL first.');
       return;
     }
     setLoading(true);
     setScanned(false);
 
     try {
+      // Check if the input is a valid URL
+      const isUrl = /^https?:\/\//i.test(inputToScan) && !inputToScan.includes('\n');
+      
+      if (isUrl) {
+        toast.loading('Fetching webpage content...', { id: 'fetch-toast' });
+        try {
+          const res = await fetch(`http://localhost:3001/api/fetch-url?url=${encodeURIComponent(inputToScan)}`);
+          if (!res.ok) throw new Error('Failed to fetch URL content');
+          const data = await res.json();
+          inputToScan = data.html || '';
+          toast.success('Webpage content fetched!', { id: 'fetch-toast' });
+        } catch (fetchErr) {
+          toast.error('Could not fetch the URL. Please check the link or try pasting source code instead.', { id: 'fetch-toast' });
+          setLoading(false);
+          return;
+        }
+      }
+
       if (!GEMINI_KEY) {
         // Simulate scan when no API key
         await new Promise(r => setTimeout(r, 1800));
-        const simulated = simulateScan(code);
+        const simulated = simulateScan(inputToScan);
         setResult(simulated);
         setScanned(true);
         toast.success('Scan complete (simulated — add VITE_GEMINI_API_KEY for real AI)');
@@ -92,9 +111,9 @@ Detection criteria:
 - score: Based on all checks (each item worth 20 points)
 - recommendations: Specific, actionable strings for each missing item
 
-Source code to analyze:
+Source code / HTML to analyze:
 ---
-${code.slice(0, 30000)}
+${inputToScan.slice(0, 30000)}
 ---
 `;
 
@@ -108,7 +127,7 @@ ${code.slice(0, 30000)}
       toast.success('Compliance scan complete!');
     } catch (err) {
       console.error(err);
-      const simulated = simulateScan(code);
+      const simulated = simulateScan(inputToScan);
       setResult(simulated);
       setScanned(true);
       toast('Scan complete (simulated fallback)', { icon: '⚠️' });
@@ -162,7 +181,7 @@ ${code.slice(0, 30000)}
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-[var(--text-primary)] flex items-center gap-2">
                   <FileCode size={18} className="text-indigo-400" />
-                  Source Code Input
+                  Source Code or URL
                 </h2>
                 <button
                   onClick={() => { setCode(''); setResult(INITIAL_RESULT); setScanned(false); }}
@@ -175,13 +194,12 @@ ${code.slice(0, 30000)}
               <textarea
                 className="form-textarea font-mono text-xs"
                 style={{ minHeight: '380px', resize: 'vertical' }}
-                placeholder={`Paste your React source code here...
+                placeholder={`Paste a Webpage URL (e.g. https://example.com) OR your React source code here...
 
 Examples:
+• https://your-website.com/privacy
 • App.jsx (routing)
 • Footer.jsx
-• PrivacyPolicy.jsx
-• Any component file
 
 The scanner will detect DPDP compliance signals including:
 - Privacy Policy page/route
@@ -220,7 +238,7 @@ The scanner will detect DPDP compliance signals including:
               {!scanned && !loading && (
                 <div className="flex-1 flex flex-col items-center justify-center text-center py-16 text-[var(--text-muted)]">
                   <Shield size={48} className="mb-4 opacity-30" />
-                  <p className="text-sm">Paste source code and click<br /><strong className="text-[var(--text-secondary)]">Run Compliance Scan</strong> to see results</p>
+                  <p className="text-sm">Paste a URL or source code and click<br /><strong className="text-[var(--text-secondary)]">Run Compliance Scan</strong> to see results</p>
                 </div>
               )}
 

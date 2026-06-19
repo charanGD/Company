@@ -1,18 +1,65 @@
-# React + Vite
+# DPDP Grievance Redressal System
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This repository contains a full-stack application designed to manage and resolve Data Digital Personal Data Protection (DPDP) grievances. It features a robust ticket management workflow, an admin dashboard, a user portal, and AI-powered tools for compliance scanning and form generation.
 
-Currently, two official plugins are available:
+## Project Structure & File Usage
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+### Root Directory
+- **`package.json` & `package-lock.json`**: Defines frontend dependencies and scripts for running, building, and linting the React application.
+- **`vite.config.js`**: Configuration file for Vite, the frontend build tool.
+- **`eslint.config.js`**: ESLint configuration to maintain code quality and styling consistency.
+- **`index.html`**: The main HTML entry point for the Vite React app.
+- **`README.md`**: Central documentation file for the project.
+- **`*.docx` & `*.doc`**: System documentation, workflow diagrams, and specifications (e.g., `ticket_system_workflow.docx`, `ack_flow.docx`, `scanner.docx`).
 
-## React Compiler
+### Frontend (`/src`)
+The `src` directory contains all the React client-side code.
+- **`assets/`**: Contains static assets such as images and icons used throughout the app.
+- **`components/`**: Reusable UI components.
+  - `Layout/`: Structural components like `Navbar.jsx` and `Sidebar.jsx`.
+  - `ui/`: Core UI components like `Badge.jsx`.
+  - `AdminRoute.jsx`: Higher-Order Component for protecting admin-only routes.
+- **`contexts/`**: React Context providers for global state.
+  - `AuthContext.jsx`: Manages user authentication state.
+  - `ThemeContext.jsx`: Manages the application's visual theme (light/dark mode).
+- **`pages/`**: Top-level page components mapped to application routes.
+  - `Dashboard.jsx`, `Login.jsx`, `SubmitGrievance.jsx`, `TicketDetail.jsx`: Core pages for users.
+  - `admin/`: Pages dedicated to administrators (`AdminDashboard.jsx`, `AdminTicketDetail.jsx`).
+  - `ai/`: Pages housing AI features (`ComplianceScanner.jsx`, `FormGenerator.jsx`, `TicketTester.jsx`).
+- **`utils/`**: Helper files and utility functions.
+  - `auditLogger.js`: Functions for handling audit trails.
+  - `firestoreHelpers.js`: Legacy/current helpers for Firebase interactions.
+- **`api/`**: Axios instances and API call functions to interface with the backend.
+- **`App.jsx`**: The root component where all frontend routes and main layouts are defined.
+- **`main.jsx`**: The bootstrapping file that renders the React application into `index.html`.
+- **`index.css` & `App.css`**: Global stylesheets, including Tailwind CSS directives.
+- **`firebase.js`**: Configuration and initialization for Firebase services.
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+### Backend (`/server`)
+The `server` directory contains the Node.js / Express backend REST API.
+- **`index.js`**: The main entry point for the Express server. It configures middleware, sets up routes, and starts the server.
+- **`db.js`**: Handles the connection and initialization of the PostgreSQL database.
+- **`middleware/`**: Contains Express middleware for request processing (e.g., authentication checks, error handling).
+- **`package.json` & `package-lock.json`**: Backend-specific npm dependencies.
+- **`.env.example`**: Template for necessary environment variables (like Database URI, JWT Secret, etc.).
 
-Note: This will impact Vite dev & build performances.
+## Setup & Running the Project
 
-## Expanding the ESLint configuration
+### Prerequisites
+- Node.js (v18+)
+- PostgreSQL (for backend database)
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### Backend Setup
+1. Navigate to the server directory: `cd server`
+2. Install dependencies: `npm install`
+3. Create a `.env` file based on `.env.example` and fill in your PostgreSQL connection string and JWT secret.
+4. Start the server: `npm run dev` or `node index.js`
+
+### Frontend Setup
+1. Navigate to the root directory: `cd ..`
+2. Install dependencies: `npm install`
+3. Start the development server: `npm run dev`
+4. The application will be accessible at the address provided by Vite (usually `http://localhost:5173`).
+
+---
+*Note: Any deployment-specific configuration files (like Vercel or Render) have been intentionally removed from this repository as it is configured to run agnostically or locally at this time.*

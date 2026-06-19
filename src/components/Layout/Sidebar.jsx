@@ -11,9 +11,8 @@ const USER_LINKS = [
   { to: '/privacy-policy', icon: ShieldCheck, label: 'Privacy Policy' },
 ];
 
-const ADMIN_LINKS = [
-  { to: '/admin', icon: Settings, label: 'Admin Dashboard' },
-];
+// We will render this explicitly in the component now for dynamic role labeling
+const ADMIN_LINKS = [];
 
 const AI_LINKS = [
   { to: '/ai/scanner', icon: ScanSearch, label: 'Compliance Scanner' },
@@ -38,19 +37,27 @@ export default function Sidebar() {
       overflowY: 'auto',
       zIndex: 90,
     }}>
-      <SideSection label="User">
-        {USER_LINKS.map(l => <SideItem key={l.to} {...l} active={location.pathname === l.to} />)}
-      </SideSection>
+      {role === 'user' && (
+        <SideSection label="User">
+          {USER_LINKS.map(l => <SideItem key={l.to} {...l} active={location.pathname === l.to} />)}
+        </SideSection>
+      )}
+
+      {['admin', 'staff'].includes(role) && (
+        <SideSection label={role === 'staff' ? 'Staff' : 'Administration'}>
+          <SideItem 
+            to="/admin" 
+            icon={Settings} 
+            label={role === 'staff' ? 'Staff Dashboard' : 'Admin Dashboard'} 
+            active={location.pathname.startsWith('/admin')} 
+          />
+        </SideSection>
+      )}
 
       {role === 'admin' && (
-        <>
-          <SideSection label="Administration">
-            {ADMIN_LINKS.map(l => <SideItem key={l.to} {...l} active={location.pathname.startsWith('/admin')} />)}
-          </SideSection>
-          <SideSection label="AI Utilities">
-            {AI_LINKS.map(l => <SideItem key={l.to} {...l} active={location.pathname === l.to} />)}
-          </SideSection>
-        </>
+        <SideSection label="AI Utilities">
+          {AI_LINKS.map(l => <SideItem key={l.to} {...l} active={location.pathname === l.to} />)}
+        </SideSection>
       )}
     </aside>
   );

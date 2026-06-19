@@ -6,6 +6,6 @@ export default function AdminRoute({ children }) {
   const { user, role, loading } = useAuth();
   if (loading) return <Spinner fullPage />;
   if (!user) return <Navigate to="/" replace />;
-  if (role !== 'admin') return <Navigate to="/dashboard" replace />;
+  if (!['admin', 'staff'].includes(role)) return <Navigate to="/dashboard" replace />;
   return children;
 }

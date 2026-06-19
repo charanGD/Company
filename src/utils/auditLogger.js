@@ -1,21 +1,9 @@
-import { db } from '../firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-
 /**
- * Logs an action to the audit_logs Firestore collection.
- * @param {string} ticketId
- * @param {string} action - e.g. "Ticket Created", "Status Changed to Resolved"
- * @param {string} performedBy - user email or uid
+ * Audit logging is now handled server-side in PostgreSQL.
+ * This file is kept as a no-op stub to avoid breaking any
+ * future imports, but all audit writes happen automatically
+ * in the backend API routes.
  */
-export async function logAction(ticketId, action, performedBy) {
-  try {
-    await addDoc(collection(db, 'audit_logs'), {
-      ticketId,
-      action,
-      performedBy,
-      timestamp: serverTimestamp(),
-    });
-  } catch (err) {
-    console.error('Audit log failed:', err);
-  }
+export async function logAction(_ticketId, _action, _performedBy) {
+  // no-op — handled by PostgreSQL backend
 }

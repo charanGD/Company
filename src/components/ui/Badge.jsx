@@ -1,7 +1,8 @@
 const STATUS_CONFIG = {
   Open:        { bg: 'rgba(59,130,246,0.15)', color: '#3b82f6', dot: '#3b82f6' },
   'In Progress':{ bg: 'rgba(245,158,11,0.15)', color: '#f59e0b', dot: '#f59e0b' },
-  Resolved:    { bg: 'rgba(16,185,129,0.15)', color: '#10b981', dot: '#10b981' },
+  'Awaiting User Confirmation': { bg: 'rgba(16,185,129,0.15)', color: '#10b981', dot: '#10b981' },
+  Reopened:    { bg: 'rgba(239,68,68,0.15)', color: '#ef4444', dot: '#ef4444' },
   Closed:      { bg: 'rgba(100,116,139,0.15)', color: '#64748b', dot: '#64748b' },
   Test:        { bg: 'rgba(168,85,247,0.15)', color: '#a855f7', dot: '#a855f7' },
 };

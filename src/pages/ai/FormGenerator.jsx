@@ -12,9 +12,8 @@ import toast from 'react-hot-toast';
 const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 const FALLBACK_FORM = `import { useState } from 'react';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../contexts/AuthContext';
+import { apiPost } from '../api/client';
 import toast from 'react-hot-toast';
 
 export default function GrievanceForm() {
@@ -58,13 +57,9 @@ export default function GrievanceForm() {
 
     setSubmitting(true);
     try {
-      await addDoc(collection(db, 'grievance_tickets'), {
+      await apiPost('/api/tickets', {
         ...formData,
-        userId: user?.uid || 'anonymous',
-        status: 'Open',
-        assignedTo: 'DPO',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        isTest: false,
       });
       toast.success('Grievance submitted successfully!');
       setFormData({ name: '', email: '', issueType: '', description: '', attachmentUrl: '' });

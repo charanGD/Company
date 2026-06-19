@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { collection, addDoc, getDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../firebase';
-import { useAuth } from '../../hooks/useAuth';
+import { apiGet, apiPost } from '../../api/client';
+import { useAuth } from '../../contexts/AuthContext';
 import Navbar from '../../components/Layout/Navbar';
 import Sidebar from '../../components/Layout/Sidebar';
 import Footer from '../../components/Layout/Footer';
@@ -70,8 +69,8 @@ export default function TicketTester() {
   const [logs, setLogs] = useState([]);
   const [running, setRunning] = useState(false);
   const [checks, setChecks] = useState({
-    firestoreWrite: null,
-    firestoreRead: null,
+    apiWrite: null,
+    apiRead: null,
     statusOpen: null,
     assignedToDPO: null,
     auditLogged: null,
@@ -105,7 +104,7 @@ export default function TicketTester() {
     };
     setMockData(mock);
     setLogs([]);
-    setChecks({ firestoreWrite: null, firestoreRead: null, statusOpen: null, assignedToDPO: null, auditLogged: null });
+    setChecks({ apiWrite: null, apiRead: null, statusOpen: null, assignedToDPO: null, auditLogged: null });
     setTicketId(null);
     setTestComplete(false);
     toast.success('Mock ticket generated!');
@@ -118,28 +117,31 @@ export default function TicketTester() {
     }
     setRunning(true);
     setLogs([]);
-    setChecks({ firestoreWrite: null, firestoreRead: null, statusOpen: null, assignedToDPO: null, auditLogged: null });
+    setChecks({ apiWrite: null, apiRead: null, statusOpen: null, assignedToDPO: null, auditLogged: null });
     setTestComplete(false);
 
     addLog('info', 'Starting DPDP grievance submission test…');
     await delay(400);
 
-    // Step 1: Write to Firestore
-    addLog('info', 'Writing test ticket to grievance_tickets collection…');
+    // Step 1: Write via REST API
+    addLog('info', 'Writing test ticket via REST API (POST /api/tickets)…');
     let docId = null;
     try {
-      const docRef = await addDoc(collection(db, 'grievance_tickets'), {
-        ...mockData,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+      const ticket = await apiPost('/api/tickets', {
+        name:          mockData.name,
+        email:         mockData.email,
+        issueType:     mockData.issueType,
+        description:   mockData.description,
+        attachmentUrl: mockData.attachmentUrl || '',
+        isTest:        true,
       });
-      docId = docRef.id;
+      docId = ticket.id;
       setTicketId(docId);
-      setChecks(c => ({ ...c, firestoreWrite: true }));
-      addLog('success', `Ticket written to Firestore. Document ID: ${docId}`);
+      setChecks(c => ({ ...c, apiWrite: true }));
+      addLog('success', `Ticket created via API. ID: ${docId}`);
     } catch (err) {
-      setChecks(c => ({ ...c, firestoreWrite: false }));
-      addLog('error', `Firestore write failed: ${err.message}`);
+      setChecks(c => ({ ...c, apiWrite: false }));
+      addLog('error', `API write failed: ${err.message}`);
       setRunning(false);
       setTestComplete(true);
       return;
@@ -147,46 +149,42 @@ export default function TicketTester() {
 
     await delay(600);
 
-    // Step 2: Read back
-    addLog('info', 'Reading back the written document to verify…');
+    // Step 2: Read back via API
+    addLog('info', 'Reading back the written ticket via GET /api/tickets/:id…');
     try {
-      const snap = await getDoc(doc(db, 'grievance_tickets', docId));
-      if (!snap.exists()) throw new Error('Document not found after write');
-      const data = snap.data();
-      setChecks(c => ({ ...c, firestoreRead: true }));
-      addLog('success', 'Document read successfully from Firestore.');
+      const data = await apiGet(`/api/tickets/${docId}`);
+      setChecks(c => ({ ...c, apiRead: true }));
+      addLog('success', 'Ticket read back successfully from PostgreSQL.');
 
       // Step 3: Verify status = Open
       const statusOk = data.status === 'Open';
       setChecks(c => ({ ...c, statusOpen: statusOk }));
       addLog(statusOk ? 'success' : 'error', `Status check: "${data.status}" ${statusOk ? '✓' : '✗ (expected "Open")'}`);
 
-      // Step 4: Verify assignedTo = DPO
+      // Step 4: Verify assigned_to = DPO
       await delay(300);
-      const assignedOk = data.assignedTo === 'DPO';
+      const assignedOk = data.assigned_to === 'DPO';
       setChecks(c => ({ ...c, assignedToDPO: assignedOk }));
-      addLog(assignedOk ? 'success' : 'error', `Assignment check: "${data.assignedTo}" ${assignedOk ? '✓' : '✗ (expected "DPO")'}`);
+      addLog(assignedOk ? 'success' : 'error', `Assignment check: "${data.assigned_to}" ${assignedOk ? '✓' : '✗ (expected "DPO")'}`);
     } catch (err) {
-      setChecks(c => ({ ...c, firestoreRead: false }));
+      setChecks(c => ({ ...c, apiRead: false }));
       addLog('error', `Read-back failed: ${err.message}`);
     }
 
     await delay(500);
 
-    // Step 5: Write audit log
-    addLog('info', 'Writing audit log entry…');
+    // Step 5: Verify audit log was written server-side
+    addLog('info', 'Verifying audit log was auto-written by server…');
     try {
-      await addDoc(collection(db, 'audit_logs'), {
-        ticketId: docId,
-        action: 'Test ticket created by TicketTester utility',
-        performedBy: user?.email || 'tester',
-        timestamp: serverTimestamp(),
-      });
-      setChecks(c => ({ ...c, auditLogged: true }));
-      addLog('success', 'Audit log entry written to audit_logs collection.');
+      const logs = await apiGet(`/api/tickets/${docId}/audit`);
+      const hasLog = logs.some(l => l.action === 'Ticket Created');
+      setChecks(c => ({ ...c, auditLogged: hasLog }));
+      addLog(hasLog ? 'success' : 'error', hasLog
+        ? 'Audit log entry confirmed in PostgreSQL audit_logs table.'
+        : 'Audit log not found — check server-side logging.');
     } catch (err) {
       setChecks(c => ({ ...c, auditLogged: false }));
-      addLog('error', `Audit log write failed: ${err.message}`);
+      addLog('error', `Audit log check failed: ${err.message}`);
     }
 
     await delay(400);
@@ -203,7 +201,7 @@ export default function TicketTester() {
   function reset() {
     setMockData(null);
     setLogs([]);
-    setChecks({ firestoreWrite: null, firestoreRead: null, statusOpen: null, assignedToDPO: null, auditLogged: null });
+    setChecks({ apiWrite: null, apiRead: null, statusOpen: null, assignedToDPO: null, auditLogged: null });
     setTicketId(null);
     setTestComplete(false);
   }
@@ -265,11 +263,11 @@ export default function TicketTester() {
               {/* Verification Checklist */}
               <div className="glass-card p-5">
                 <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-3">Verification Checks</h2>
-                <CheckRow label="Firestore Write" passed={checks.firestoreWrite} icon={Database} />
-                <CheckRow label="Firestore Read-back" passed={checks.firestoreRead} icon={Database} />
+                <CheckRow label="API Write (PostgreSQL)" passed={checks.apiWrite} icon={Database} />
+                <CheckRow label="API Read-back" passed={checks.apiRead} icon={Database} />
                 <CheckRow label="Status = Open" passed={checks.statusOpen} icon={ClipboardList} />
                 <CheckRow label="Assigned to DPO" passed={checks.assignedToDPO} icon={Route} />
-                <CheckRow label="Audit Log Written" passed={checks.auditLogged} icon={FileText} />
+                <CheckRow label="Audit Log Verified" passed={checks.auditLogged} icon={FileText} />
 
                 {testComplete && (
                   <div className={`mt-4 p-3 rounded-xl text-sm font-semibold flex items-center gap-2 ${allPassed ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border border-red-500/20 text-red-400'}`}>
