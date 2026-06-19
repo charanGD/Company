@@ -61,5 +61,27 @@ The `server` directory contains the Node.js / Express backend REST API.
 3. Start the development server: `npm run dev`
 4. The application will be accessible at the address provided by Vite (usually `http://localhost:5173`).
 
+## Feature Workflows
+
+### 1. User Grievance Submission
+- **Submission:** Users can submit DPDP-related grievances through the user portal. They provide necessary details, such as the nature of the data breach or the specific right they are exercising (e.g., Right to Erasure, Right to Information).
+- **Tracking:** Upon submission, a unique ticket is created and tracked within the system. Users can view their active tickets on their dashboard.
+
+### 2. Ticket Resolution & Acknowledgment Workflow
+- **Assignment:** Admins review incoming tickets on the Admin Dashboard and assign them to specific staff members for investigation.
+- **Resolution:** The assigned staff member investigates and provides a resolution, updating the ticket status.
+- **Awaiting User Confirmation:** Once staff marks the ticket as resolved, the ticket enters an 'Awaiting User Confirmation' state.
+- **Closure:** The user is prompted to review the resolution. If accepted, the ticket is formally 'Closed'. If rejected, the ticket may be reopened for further investigation.
+- **Audit Logging:** Every state change, assignment, and resolution is permanently logged to ensure compliance and accountability.
+
+### 3. AI Compliance Scanner
+- **Functionality:** This tool allows administrators or legal teams to scan a provided URL or website content.
+- **Analysis:** The AI analyzes the content specifically against the rules and requirements of the DPDP Act (e.g., checking for proper consent mechanisms, privacy policy clarity, and data usage declarations).
+- **Reporting:** It generates a comprehensive compliance report, highlighting potential violations and suggesting remediations.
+
+### 4. AI Form Generator
+- **Purpose:** Helps organizations easily create DPDP-compliant data collection and consent forms.
+- **Usage:** Users input their specific data collection requirements, and the AI generates a customized, legally sound form structure with appropriate consent checkboxes and disclaimers.
+
 ---
 *Note: Any deployment-specific configuration files (like Vercel or Render) have been intentionally removed from this repository as it is configured to run agnostically or locally at this time.*
