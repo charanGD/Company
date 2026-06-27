@@ -70,6 +70,13 @@ export async function initSchema() {
         performed_by TEXT NOT NULL,
         created_at   TIMESTAMPTZ DEFAULT NOW()
       );
+
+      -- Dynamic Scanner Keywords
+      CREATE TABLE IF NOT EXISTS scanner_keywords (
+        id           SERIAL PRIMARY KEY,
+        keyword      TEXT NOT NULL UNIQUE,
+        created_at   TIMESTAMPTZ DEFAULT NOW()
+      );
     `);
 
     // Add new columns for User Acknowledgment Workflow if they don't exist

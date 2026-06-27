@@ -418,6 +418,48 @@ app.post('/api/tickets/:id/acknowledge', requireAuth, async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════════════════
+//  SCANNER
+// ════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/scanner/keywords', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await query('SELECT * FROM scanner_keywords ORDER BY created_at ASC');
+    res.json(rows);
+  } catch (err) {
+    console.error('GET /api/scanner/keywords:', err.message);
+    res.status(500).json({ error: 'Failed to fetch keywords' });
+  }
+});
+
+app.post('/api/scanner/keywords', requireAuth, requireAdmin, async (req, res) => {
+  const { keyword } = req.body;
+  if (!keyword?.trim()) return res.status(400).json({ error: 'Keyword is required' });
+  try {
+    const { rows } = await query(
+      'INSERT INTO scanner_keywords (keyword) VALUES ($1) ON CONFLICT DO NOTHING RETURNING *',
+      [keyword.trim().toLowerCase()]
+    );
+    if (!rows.length) return res.status(409).json({ error: 'Keyword already exists' });
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error('POST /api/scanner/keywords:', err.message);
+    res.status(500).json({ error: 'Failed to add keyword' });
+  }
+});
+
+app.delete('/api/scanner/keywords/:id', requireAuth, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { rowCount } = await query('DELETE FROM scanner_keywords WHERE id = $1', [id]);
+    if (rowCount === 0) return res.status(404).json({ error: 'Keyword not found' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('DELETE /api/scanner/keywords/:id:', err.message);
+    res.status(500).json({ error: 'Failed to delete keyword' });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════════
 //  EMAIL
 // ════════════════════════════════════════════════════════════════════════════
 let transporter;

@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { apiGet, apiPost, apiDelete } from '../../api/client';
 import Navbar from '../../components/Layout/Navbar';
 import Sidebar from '../../components/Layout/Sidebar';
 import Footer from '../../components/Layout/Footer';
 import Spinner from '../../components/ui/Spinner';
 import {
   Shield, Scan, CheckCircle2, XCircle, AlertTriangle,
-  FileCode, ClipboardList, ChevronRight, RefreshCw
+  FileCode, ClipboardList, ChevronRight, RefreshCw,
+  Plus, Trash2, Key
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -18,6 +20,7 @@ const INITIAL_RESULT = {
   grievanceForm: null,
   contactPage: null,
   footerContact: null,
+  dynamicKeywords: {},
   score: null,
   recommendations: [],
   raw: '',
@@ -45,6 +48,47 @@ export default function ComplianceScanner() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(INITIAL_RESULT);
   const [scanned, setScanned] = useState(false);
+  const [keywords, setKeywords] = useState([]);
+  const [newKeyword, setNewKeyword] = useState('');
+  const [keywordsLoading, setKeywordsLoading] = useState(false);
+
+  useEffect(() => {
+    fetchKeywords();
+  }, []);
+
+  async function fetchKeywords() {
+    try {
+      const data = await apiGet('/api/scanner/keywords');
+      setKeywords(data);
+    } catch (err) {
+      console.error('Failed to fetch keywords', err);
+    }
+  }
+
+  async function addKeyword() {
+    if (!newKeyword.trim()) return;
+    setKeywordsLoading(true);
+    try {
+      const added = await apiPost('/api/scanner/keywords', { keyword: newKeyword });
+      setKeywords([...keywords, added]);
+      setNewKeyword('');
+      toast.success('Keyword added');
+    } catch (err) {
+      toast.error('Failed to add keyword (might exist already)');
+    } finally {
+      setKeywordsLoading(false);
+    }
+  }
+
+  async function deleteKeyword(id) {
+    try {
+      await apiDelete(`/api/scanner/keywords/${id}`);
+      setKeywords(keywords.filter(k => k.id !== id));
+      toast.success('Keyword deleted');
+    } catch (err) {
+      toast.error('Failed to delete keyword');
+    }
+  }
 
   async function runScan() {
     let inputToScan = code.trim();
@@ -87,6 +131,12 @@ export default function ComplianceScanner() {
       const genAI = new GoogleGenerativeAI(GEMINI_KEY);
       const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
+      const keywordsList = keywords.map(k => k.keyword).join(', ');
+      const dynamicKeywordsJson = keywords.reduce((acc, k) => {
+        acc[k.keyword] = "true/false";
+        return acc;
+      }, {});
+
       const prompt = `
 You are a DPDP Act Section 8(10) compliance auditor.
 Analyze the following React source code for DPDP compliance indicators.
@@ -98,6 +148,7 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no extra
   "grievanceForm": true/false,
   "contactPage": true/false,
   "footerContact": true/false,
+  "dynamicKeywords": ${keywords.length ? JSON.stringify(dynamicKeywordsJson) : "{}"},
   "score": <integer 0-100>,
   "recommendations": ["string1", "string2", ...]
 }
@@ -108,8 +159,9 @@ Detection criteria:
 - grievanceForm: Is there a grievance submission form or route (/submit-grievance, /grievance)?
 - contactPage: Is there a Contact page or route (/contact)?
 - footerContact: Does the footer contain contact info or DPO details?
-- score: Based on all checks (each item worth 20 points)
-- recommendations: Specific, actionable strings for each missing item
+- dynamicKeywords: Check for the exact presence (case-insensitive) of these specific keywords: ${keywordsList || 'None specified'}. Set to true if found, false otherwise.
+- score: Based on all checks (each core item worth 20 points, evaluate overall compliance out of 100).
+- recommendations: Specific, actionable strings for each missing item.
 
 Source code / HTML to analyze:
 ---
@@ -151,7 +203,15 @@ ${inputToScan.slice(0, 30000)}
     if (!grievanceForm) recommendations.push('Implement a /submit-grievance form with Firestore integration.');
     if (!contactPage) recommendations.push('Create a Contact page with organisational contact details.');
     if (!footerContact) recommendations.push('Add DPO contact information to the site footer on all pages.');
-    return { privacyPolicy, dpoContact, grievanceForm, contactPage, footerContact, score, recommendations, raw: '' };
+    
+    const dynamicKeywords = {};
+    keywords.forEach(k => {
+      const found = lower.includes(k.keyword.toLowerCase());
+      dynamicKeywords[k.keyword] = found;
+      if (!found) recommendations.push(`Missing dynamic keyword: "${k.keyword}"`);
+    });
+
+    return { privacyPolicy, dpoContact, grievanceForm, contactPage, footerContact, dynamicKeywords, score, recommendations, raw: '' };
   }
 
   const scoreColor = result.score >= 80 ? 'text-emerald-400' : result.score >= 50 ? 'text-amber-400' : 'text-red-400';
@@ -176,8 +236,10 @@ ${inputToScan.slice(0, 30000)}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Input Panel */}
-            <div className="glass-card p-6 flex flex-col gap-4">
+            {/* Left Column */}
+            <div className="flex flex-col gap-6">
+              {/* Input Panel */}
+              <div className="glass-card p-6 flex flex-col gap-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-[var(--text-primary)] flex items-center gap-2">
                   <FileCode size={18} className="text-indigo-400" />
@@ -228,6 +290,51 @@ The scanner will detect DPDP compliance signals including:
               </div>
             </div>
 
+            {/* Keyword Management Panel */}
+            <div className="glass-card p-6 flex flex-col gap-4">
+              <h2 className="text-lg font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                <Key size={18} className="text-indigo-400" />
+                Dynamic Keywords
+              </h2>
+              <p className="text-xs text-[var(--text-muted)]">
+                Add specific keywords for the AI to scan and detect across the provided source code or webpage.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  className="form-input flex-1 font-sans text-sm"
+                  placeholder="e.g. arbitration, opt-out, cookie consent..."
+                  value={newKeyword}
+                  onChange={e => setNewKeyword(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addKeyword()}
+                  disabled={keywordsLoading}
+                />
+                <button
+                  className="btn-primary px-4"
+                  onClick={addKeyword}
+                  disabled={keywordsLoading || !newKeyword.trim()}
+                >
+                  <Plus size={16} />
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {keywords.length === 0 ? (
+                  <span className="text-xs text-[var(--text-muted)] italic">No dynamic keywords configured.</span>
+                ) : (
+                  keywords.map(k => (
+                    <div key={k.id} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--bg-primary)] border border-[var(--border)] text-xs text-[var(--text-secondary)]">
+                      {k.keyword}
+                      <button onClick={() => deleteKeyword(k.id)} className="text-red-400 hover:text-red-300 transition-colors">
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            
+            </div> {/* End Left Column */}
+
             {/* Results Panel */}
             <div className="glass-card p-6 flex flex-col gap-6">
               <h2 className="text-lg font-semibold text-[var(--text-primary)] flex items-center gap-2">
@@ -276,6 +383,18 @@ The scanner will detect DPDP compliance signals including:
                     <StatusRow label="Contact Page" value={result.contactPage} icon={ClipboardList} />
                     <StatusRow label="Footer Contact Info" value={result.footerContact} icon={Shield} />
                   </div>
+
+                  {/* Dynamic Keywords Results */}
+                  {Object.keys(result.dynamicKeywords || {}).length > 0 && (
+                    <div className="mt-2 pt-4 border-t border-[var(--border)]">
+                      <h3 className="text-sm font-semibold text-[var(--text-secondary)] mb-3 flex items-center gap-2">
+                        <Key size={14} className="text-indigo-400" /> Dynamic Keywords
+                      </h3>
+                      {Object.entries(result.dynamicKeywords).map(([kw, found]) => (
+                        <StatusRow key={kw} label={`Keyword: "${kw}"`} value={found} icon={FileCode} />
+                      ))}
+                    </div>
+                  )}
 
                   {/* Recommendations */}
                   {result.recommendations.length > 0 && (
